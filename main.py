@@ -1,10 +1,15 @@
 import json
 import logging
+import requests
 import functions_framework
 from google.cloud import logging as cloud_logging
 
+# Inicializar cliente de Cloud Logging
 client = cloud_logging.Client()
 client.setup_logging()
+
+# URL de la Web App en Google Apps Script
+WEBHOOK_WORKSPACE_URL = "https://script.google.com/macros/s/AKfycbwzherE2MJ6bYSf0LFtQ2gSoiXqyUeFQaNeS6_ED-cT29vdYlyUUltfzY7074VHsxIreg/exec"
 
 @functions_framework.cloud_event
 def procesar_archivo(cloud_event):
@@ -32,7 +37,22 @@ def procesar_archivo(cloud_event):
             "estado": "PROCESADO"
         }
 
+        # 1. Registro estructurado en Google Cloud Logging
         logging.info(json.dumps(registro_exito))
+
+        # 2. Transmisión asíncrona hacia Google Workspace (Google Sheets)
+        try:
+            params = {
+                "archivo": nombre_archivo,
+                "tamano_bytes": tamano_bytes,
+                "tipo_mime": tipo_mime,
+                "bucket": bucket
+            }
+            resp = requests.get(WEBHOOK_WORKSPACE_URL, params=params, timeout=10)
+            logging.info(f"Workspace responded: HTTP {resp.status_code}")
+        except Exception as err_ws:
+            logging.warning(f"Error al comunicar con Workspace: {str(err_ws)}")
+
         return {"status": "success", "archivo": nombre_archivo}, 200
 
     except Exception as error:
